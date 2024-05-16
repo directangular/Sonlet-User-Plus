@@ -12,14 +12,30 @@
             "https://beta.sonlet.com/*",
             "http://localhost:8000/*"
         ],
-        "js": ["browser-polyfill.min.js", "sup-common.js", "sup-sonlet.js"]
+        "js": [
+            "${BROWSER_POLYFILL}",
+            "sup-common.js",
+            "sup-dom.js",
+            "sup-message-area.js",
+            "sup-sonlet.js"
+        ],
+        "css": ["sup-message-area.css"]
     }, {
         "matches": [
             "https://www.facebook.com/*"
         ],
-        "js": ["browser-polyfill.min.js", "sup-common.js", "sup-fb.js"]
+        "js": [
+            "${BROWSER_POLYFILL}",
+            "sup-common.js",
+            "sup-dom.js",
+            "sup-message-area.js",
+            "sup-fb.js"
+        ]
     }],
     "background": {
         "scripts": ["sup-background.js"]
-    }
+    },
+    "permissions": [
+        "storage"
+    ]
 }

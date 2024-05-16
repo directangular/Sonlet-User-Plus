@@ -1,0 +1,75 @@
+.SUP-message-area {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 200px;
+    height: 100%;
+    background-color: #f0f0f0;
+    border-left: 1px solid #ccc;
+    overflow: auto;
+    z-index: 10000;
+    transition: right 0.3s;
+}
+
+.SUP-message-content {
+    padding: 10px;
+}
+
+.SUP-message-toggle {
+    position: absolute;
+    left: -20px;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    background-color: #ccc;
+    text-align: center;
+    cursor: pointer;
+    transform: translateY(-50%);
+}
+
+.SUP-message-area.collapsed {
+    right: -180px; /* Width of the message area minus the width of the toggle button */
+}
+
+.SUP-message-toggle.collapsed {
+    transform: rotate(180deg) translateY(50%);
+}
+
+/* Base style for all message types */
+.SUP-message-content div {
+    padding: 8px 10px;
+    margin: 4px 0;
+    border-left: 5px solid transparent;
+    background-color: #f9f9f9;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #333;
+}
+
+/* Debug messages - typically gray to indicate lower priority */
+.SUP-message-content div.SUP-message-debug {
+    border-left-color: #9e9e9e;
+    background-color: #e0e0e0;
+    color: #424242;
+}
+
+/* Information messages - blue to stand out but not alarm */
+.SUP-message-content div.SUP-message-info {
+    border-left-color: #2196f3;
+    background-color: #e3f2fd;
+    color: #0d47a1;
+}
+
+/* Success messages - green to indicate successful operations or confirmations */
+.SUP-message-content div.SUP-message-success {
+    border-left-color: #4caf50;
+    background-color: #e8f5e9;
+    color: #1b5e20;
+}
+
+/* Error messages - red to indicate problems or important warnings */
+.SUP-message-content div.SUP-message-error {
+    border-left-color: #f44336;
+    background-color: #ffebee;
+    color: #b71c1c;
+}
