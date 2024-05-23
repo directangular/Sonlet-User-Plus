@@ -106,6 +106,29 @@ const refreshAlbums = async (fbTabId, fbGroupId) => {
 
 /// *** BEGIN message handlers ***
 
+const linkFbGroup = (message, sender, sendResponse) => {
+    // make api request to link group
+    const { fbGroupId, fbGroupName, pictureUrl } = message;
+    supFetch("/api/v2/link_fb_group/", {
+        method: "POST",
+        headers: {
+            "content-type": "application/json",
+        },
+        body: JSON.stringify({
+            fbid: fbGroupId,
+            name: fbGroupName,
+            picture_url: pictureUrl,
+        }),
+    })
+        .then(async rsp => {
+            supLog("Got link_fb_group api rsp", rsp);
+            return [rsp.ok, await rsp.json()];
+        })
+        .then(([ok, json]) => sendResponse({success: ok, data: {...json}}))
+        .catch(error => sendResponse({success: false, error}));
+    return true;
+};
+
 const navComplete = (message, sender, sendResponse) => {
     supLog("FIXMEEEEEEE NAV COMPLETE!!!", message, sender);
     // lots of message proxying :sob:
@@ -122,6 +145,7 @@ function init() {
     initMessageArea();
     messaging.init({
         actionListeners: [
+            ["linkFbGroup", linkFbGroup],
             ["navComplete", navComplete],
         ],
         proxyActionListeners: [],

@@ -4,10 +4,16 @@
     <link href="popup.css" rel="stylesheet" />
   </head>
   <body>
-    <div class="top-logo">
-      <img src="icons/sup-icon-128x128.png" />
+    <div id="id_content">
+      <h3 id="id_header"></h3>
+      <div class="top-logo">
+        <img id="id_logo" src="icons/sup-icon-128x128.png" />
+      </div>
+      <div id="id_cta"></div>
     </div>
-    <div id="id_content">Loading...</div>
+    <script src="browser-polyfill.min.js"></script>
+    <script src="js.cookie.js"></script>
+    <script src="sup-common.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

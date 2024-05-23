@@ -9,14 +9,45 @@ img {
     height: auto;
 }
 
+#id_header {
+    text-align: center;
+}
+
 .top-logo {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100px;
     margin-top: 20px;
 }
 
-.top-logo img {
+#id_logo {
     border-radius: 5px;
+    filter: drop-shadow(2px 4px 6px black) grayscale(1) blur(2px);
+    cursor: pointer;
+    height: 128px;
+}
+
+#id_logo.active {
+    filter: drop-shadow(2px 4px 6px black);
+    border: solid 2px #00000000;
+    transition: filter 0.3s ease, transform 0.3s ease;
+    transform: scale(1);
+}
+
+#id_logo.active:hover {
+    border: solid 2px #fafa99;
+    filter: drop-shadow(2px 4px 6px black) saturate(2);
+    transform: scale(1.1);
+}
+
+#id_cta {
+    margin: 30px 10px;
+    background: #fafa99;
+    border-radius: 3px;
+    border: solid 2px #333;
+    padding: 10px;
+}
+
+#id_cta.success {
+    background: #4bff38;
 }

@@ -108,6 +108,34 @@ const loadGroupPage = (message, sender, sendResponse) => {
     return true;
 };
 
+// Assumes we're already on the group admin edit page
+const getFbGroupDetails = (message, sender, sendResponse) => {
+    // Get the current URL and remove the trailing "/edit" or "/edit/" if present
+    let groupUrl = window.location.href.replace(/\/edit\/?$/, "");
+
+    // Create an XPath expression that matches an anchor element with the href attribute equal to the current URL or with a trailing slash
+    const groupNameXpath = `//a[(normalize-space(@href)='${groupUrl}' or normalize-space(@href)='${groupUrl}/') and @role='link']`;
+
+    // Use the $X helper function to find the element
+    const elements = $X(groupNameXpath);
+
+    let fbGroupName = "";
+    if (elements.length > 0) {
+        fbGroupName = elements[0].textContent.trim();
+    }
+
+    // Construct the XPath for the picture URL using the retrieved fbGroupName
+    const pictureXpath = `//a[@aria-label='${fbGroupName}' and contains(normalize-space(@href), '${groupUrl}') and @role='link']//image/@*[local-name()='href']`;
+    const pictureElements = $X(pictureXpath);
+
+    let pictureUrl = null;
+    if (pictureElements.length > 0) {
+        pictureUrl = pictureElements[0].nodeValue.trim(); // Fetching the URL from the attribute node
+    }
+
+    sendResponse({status: "complete", success: true, fbGroupName, pictureUrl});
+};
+
 /// *** END message handlers ***
 
 /// *** BEGIN connection handlers ***
@@ -158,7 +186,7 @@ const executeTask = (task) => {
         // persistent tab and thus can't use our proxy connection framework
         // from SUPMessaging (which connects two tabs).
         supLog("Sending proxy response back via background script");
-        messaging.sendMessage("navComplete", { originalMessage: task.details })
+        messaging.sendMessageToBackground("navComplete", { originalMessage: task.details })
             .catch((error) => addMessage(L_ERROR, "Failed to send navComplete proxy response"));
         return;
     }
@@ -166,7 +194,7 @@ const executeTask = (task) => {
 
 const handlePostNavigationTasks = () => {
     // Check if there's a post-navigation task that needs to be executed
-    messaging.sendMessage("checkForPostNavigationTask").then(response => {
+    messaging.sendMessageToBackground("checkForPostNavigationTask").then(response => {
         if (response.hasTask) {
             executeTask(response.task);
         }
@@ -183,6 +211,7 @@ function init() {
         actionListeners: [
             ["loadAlbumPage", loadAlbumPage],
             ["loadGroupPage", loadGroupPage],
+            ["getFbGroupDetails", getFbGroupDetails],
         ],
         proxyActionListeners: [
             ["postImages", proxyPostImages],

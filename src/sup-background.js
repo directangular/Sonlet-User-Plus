@@ -6,6 +6,15 @@ const api = typeof browser === 'undefined' ? chrome : browser;
 const supLog = (...args) => console.log("[SUP-BG]", ...args);
 const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
+const USE_DEV_SONLET = true;
+
+const sonletBaseUrl = () => USE_DEV_SONLET ? "http://localhost:8000/" : "https://sonlet.com/";
+
+const sonletUrl = (path) => {
+    const pathNoLeadingSlash = path.startsWith("/") ? path.slice(1) : path;
+    return sonletBaseUrl() + pathNoLeadingSlash;
+};
+
 // Would be nice to generalize this so that we don't have to keep separate
 // hooks for groups vs. albums... But this is good enough for who it's for
 // at the moment.
@@ -98,6 +107,22 @@ const withFacebookTab = (callback) => {
         function checkTabAndExecuteCallback(tabId, changeInfo, tab) {
             if (tabId === newTab.id && changeInfo.status === 'complete') {
                 supLog("Have FB tab", tab.id, { tab });
+                callback(tab);
+                api.tabs.onUpdated.removeListener(checkTabAndExecuteCallback);
+            }
+        }
+
+        // Listen for the tab update to ensure it is fully loaded
+        api.tabs.onUpdated.addListener(checkTabAndExecuteCallback);
+    });
+};
+
+// callback takes one arg: tab
+const withSonletTab = (callback) => {
+    api.tabs.create({ url: sonletUrl("/empty/"), active: false }, (newTab) => {
+        function checkTabAndExecuteCallback(tabId, changeInfo, tab) {
+            if (tabId === newTab.id && changeInfo.status === 'complete') {
+                supLog("Have Sonlet tab", tab.id, { tab });
                 callback(tab);
                 api.tabs.onUpdated.removeListener(checkTabAndExecuteCallback);
             }
@@ -211,6 +236,31 @@ const changeUrl = (message, sender, sendResponse) => {
     return true;
 };
 
+const getFbGroupDetailsOfCurrentTab = (message, sender, sendResponse) => {
+    getCurrentTab().then(tab => {
+        api.tabs.sendMessage(tab.id, {
+            action: "getFbGroupDetails",
+        }).then(rsp => {
+            sendResponse(rsp);
+        });
+    });
+    return true;
+};
+
+const linkFbGroup = (message, sender, sendResponse) => {
+    withSonletTab(tab => {
+        api.tabs.sendMessage(tab.id, {
+            action: "linkFbGroup",
+            ...message,
+        }).then(rsp => {
+            supLog("Got linkFbGroup rsp", rsp);
+            sendResponse(rsp);
+            api.tabs.remove(tab.id);
+        });
+    });
+    return true;
+};
+
 const checkForPostNavigationTask = (message, sender, sendResponse) => {
     const tabId = sender.tab.id;
     if (pendingTasks.has(tabId)) {
@@ -264,7 +314,11 @@ const proxySend = (message, sender, sendResponse) => {
 
 // onMessage action handlers by name
 const messageActions = {
+    // general actions
     "changeUrl": changeUrl,
+    "getFbGroupDetailsOfCurrentTab": getFbGroupDetailsOfCurrentTab,
+    "linkFbGroup": linkFbGroup,
+    // plumbing
     "checkForPostNavigationTask": checkForPostNavigationTask,
     "navComplete": navComplete,
     "proxySend": proxySend,
@@ -284,7 +338,7 @@ const portRoutes = {
 };
 
 function onMessage(message, sender, sendResponse) {
-    supLog(`got message from ${sender}`, message.action, message);
+    supLog(`got message`, message.action, message, sender);
     const actionFn = messageActions[message.action];
     if (actionFn !== undefined) {
         return actionFn(message, sender, sendResponse);

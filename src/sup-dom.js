@@ -1,4 +1,4 @@
-const findElementsByXpath = (
+const $X = (
     xpath,
     contextNode = document,
     resultType = XPathResult.ORDERED_NODE_ITERATOR_TYPE,
@@ -10,6 +10,8 @@ const findElementsByXpath = (
     }
     return nodes;
 };
+
+const findElementsByXpath = $X;
 
 const scrollToBottom = (delayPerIter = 1000, maxIters = 15) => {
     let iterCnt = 0;

@@ -28,6 +28,18 @@ const filenameFromUrl = (url) => {
     return pathname.substring(pathname.lastIndexOf('/') + 1);
 };
 
+// wrap fetch to include auth headers, etc
+const supFetch = (url, options) => {
+    options.headers = {
+        "X-CSRFToken": Cookies.get("str-csrftoken"),
+        ...options.headers,
+    };
+    return fetch(url, {
+        credentials: "same-origin",
+        ...options,
+    });
+};
+
 class SUPStorage {
     constructor() {}
 
@@ -153,7 +165,7 @@ class SUPMessaging {
     }
 
     // Callers can listen for responses on the returned promise.
-    sendMessage(action, message = {}) {
+    sendMessageToBackground(action, message = {}) {
         message.action = action;
         return this.api.runtime.sendMessage(message);
     }
