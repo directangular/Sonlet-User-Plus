@@ -6,7 +6,11 @@ const api = typeof browser === 'undefined' ? chrome : browser;
 const supLog = (...args) => console.log("[SUP-BG]", ...args);
 const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
+// Would be nice to generalize this so that we don't have to keep separate
+// hooks for groups vs. albums... But this is good enough for who it's for
+// at the moment.
 const albumNavHandlers = {};
+const groupNavHandlers = {};
 
 // Always use strings for object keys. Without this, any totally numeric
 // IDs get converted to Numbers, which makes subsequent access annoying
@@ -30,6 +34,26 @@ const runAlbumNavHandlers = (fbAlbumId, fbTabId, message) => {
     const tabKey = _navHandlerIdToKey(fbTabId);
     if (albumNavHandlers[fbKey] && albumNavHandlers[fbKey][tabKey]) {
         albumNavHandlers[fbKey][tabKey].forEach(handler => handler(message));
+    }
+};
+
+const addGroupNavHandler = (fbGroupId, fbTabId, handler) => {
+    const fbKey = _navHandlerIdToKey(fbGroupId);
+    const tabKey = _navHandlerIdToKey(fbTabId);
+    if (groupNavHandlers[fbKey] === undefined) {
+        groupNavHandlers[fbKey] = [];
+    }
+    if (groupNavHandlers[fbKey][tabKey] === undefined) {
+        groupNavHandlers[fbKey][tabKey] = [];
+    }
+    groupNavHandlers[fbKey][tabKey].push(handler);
+};
+
+const runGroupNavHandlers = (fbGroupId, fbTabId, message) => {
+    const fbKey = _navHandlerIdToKey(fbGroupId);
+    const tabKey = _navHandlerIdToKey(fbTabId);
+    if (groupNavHandlers[fbKey] && groupNavHandlers[fbKey][tabKey]) {
+        groupNavHandlers[fbKey][tabKey].forEach(handler => handler(message));
     }
 };
 
@@ -107,21 +131,46 @@ const gotoAlbum = (port, message) => {
     });
 };
 
-const fetchAlbums = (port, message) => {
+const gotoGroup = (port, message) => {
+    const { fbGroupId } = message;
     port.postMessage({status: "pending"});
-    sleep(2000).then(() => {
-        port.postMessage({
-            "status": "complete",
-            "success": true,
-            "albums": [{
-                "name": "My face is cool",
-                "id": "3429873247829892834",
-            }, {
-                "name": "i like pizza",
-                "id": "1727171711771717",
-            }],
+    withFacebookTab((tab) => {
+        // The loadGroupPage message handler in sup-fb.js cannot send a
+        // response since the tab changes URLs and thus closes the
+        // connection. Instead, we add a group nav handler which gets
+        // called in the navComplete handler below (which is the handler
+        // for the message that gets sent from the fb tab when it loads and
+        // finds a post nav task).
+        addGroupNavHandler(fbGroupId, tab.id, (message) => {
+            supLog("Group nav handled. Notifying sonlet.js", {fbGroupId, tab, message});
+            port.postMessage({status: "complete", success: true, fbTabId: tab.id});
+        });
+        // TODO: add timeout that will do a port.postMessage({status: "complete", success: false});
+        api.tabs.sendMessage(tab.id, {
+            action: "loadGroupPage",
+            fbGroupId,
+            originalMessage: message,
         });
     });
+};
+
+const fetchAlbums = (port, message) => {
+    // open connection to FB tab
+    const { fbTabId } = message;
+    supLog(`Fetching albums on FB tab ${fbTabId}`);
+    const fbPort = api.tabs.connect(fbTabId, {name: "fetchAlbumsChannel"});
+    fbPort.onMessage.addListener((msg) => {
+        if (msg.status === "pending") {
+            // forward the message over to sonlet
+            port.postMessage(msg);
+        } else if (msg.status === "complete") {
+            port.postMessage(msg);
+            fbPort.disconnect();
+        } else {
+            supLog(`Unknown message received on ${fbPort.name}`, msg);
+        }
+    });
+    fbPort.postMessage({"action": "fetchAlbums"});
 };
 
 // To keep track of tasks that need to be performed by a content
@@ -190,6 +239,8 @@ const navComplete = (message, sender, sendResponse) => {
         supLog("have", {originalMessageInner});
         if (originalMessageInner.action === "gotoAlbum") {
             runAlbumNavHandlers(originalMessageInner.fbAlbumId, sender.tab.id, originalMessageInner);
+        } else if (originalMessageInner.action === "gotoGroup") {
+            runGroupNavHandlers(originalMessageInner.fbGroupId, sender.tab.id, originalMessageInner);
         }
     }
 
@@ -224,7 +275,10 @@ const portRoutes = {
     "gotoAlbumChannel": {
         "gotoAlbum": gotoAlbum,
     },
-    "popupChannel": {
+    "gotoGroupChannel": {
+        "gotoGroup": gotoGroup,
+    },
+    "fetchAlbumsChannel": {
         "fetchAlbums": fetchAlbums,
     },
 };

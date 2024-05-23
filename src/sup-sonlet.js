@@ -1,7 +1,7 @@
 const storage = new SUPStorage();
 const messaging = new SUPMessaging(browser);
 
-const withFbAlbum = (fbAlbumId, {onSuccess, onFailure, onStatus}) => {
+const withFbAlbumTab = (fbAlbumId, {onSuccess, onFailure, onStatus}) => {
     const port = browser.runtime.connect({name: "gotoAlbumChannel"});
     port.onMessage.addListener((msg) => {
         supLog("Got gotoAlbum ping", msg);
@@ -19,7 +19,25 @@ const withFbAlbum = (fbAlbumId, {onSuccess, onFailure, onStatus}) => {
     port.postMessage({action: "gotoAlbum", fbAlbumId});
 };
 
-const postImagesToFb = async (destTabId, fbAlbumId, imageUrls) => {
+const withFbGroupAlbumsTab = (fbGroupId, {onSuccess, onFailure, onStatus}) => {
+    const port = browser.runtime.connect({name: "gotoGroupChannel"});
+    port.onMessage.addListener((msg) => {
+        supLog("Got gotoGroup ping", msg);
+        if (msg.status === "complete") {
+            if (msg.success) {
+                onSuccess({fbTabId: msg.fbTabId});
+            } else {
+                onFailure(msg);
+            }
+            port.disconnect();
+        } else {
+            onStatus(msg);
+        }
+    });
+    port.postMessage({action: "gotoGroup", fbGroupId});
+};
+
+const postImagesToFb = async (fbTabId, fbAlbumId, imageUrls) => {
     const handles = [];
     for (const url of imageUrls) {
         try {
@@ -31,7 +49,7 @@ const postImagesToFb = async (destTabId, fbAlbumId, imageUrls) => {
         }
     }
 
-    const session = messaging.createSession(destTabId);
+    const session = messaging.createSession(fbTabId);
     session.onMessage.addListener((message) => {
         supLog("Got postImages ping", message);
         if (message.status === "complete") {
@@ -45,6 +63,41 @@ const postImagesToFb = async (destTabId, fbAlbumId, imageUrls) => {
         }
     });
     session.sendProxyMessage("postImages", {fbAlbumId, handles});
+};
+
+const fetchAlbumsForTabFromBackend = (fbTabId) => {
+    return new Promise((resolve, reject) => {
+        const port = browser.runtime.connect({name: "fetchAlbumsChannel"});
+        port.onMessage.addListener((msg) => {
+            if (msg.status === "pending") {
+                addMessage(L_DEBUG, "Fetching albums...");
+            } else if (msg.status === "complete") {
+                port.disconnect();
+                if (msg.success) {
+                    resolve(msg);
+                } else {
+                    reject(msg);
+                }
+            } else {
+                console.error("Unknown message received", msg);
+            }
+        });
+        port.postMessage({action: "fetchAlbums", fbTabId});
+    });
+};
+
+const refreshAlbums = async (fbTabId, fbGroupId) => {
+    try {
+        const results = await fetchAlbumsForTabFromBackend(fbTabId);
+        supLog("Got album data", results);
+        addMessage(L_SUCCESS, `Fetched ${results.albums.length} albums from group ${fbGroupId}!`);
+        for (const album of results.albums) {
+            addMessage(L_DEBUG, `Album: ${album.name} | ID: ${album.id}`);
+        }
+    } catch (error) {
+        supLog("Error fetching albums", results);
+        addMessage(L_ERROR, `Error fetching albums: ${error.message}`);
+    }
 };
 
 /// *** BEGIN proxy message handlers ***
@@ -83,7 +136,7 @@ function init() {
     window.addEventListener("postImagesToFbAlbum", function(event) {
         supLog("GOT postImages EVENT!!!", event);
         const { imageUrls, fbAlbumId } = event.detail;
-        withFbAlbum(fbAlbumId, {
+        withFbAlbumTab(fbAlbumId, {
             onSuccess: ({ fbTabId }) => {
                 addMessage(L_INFO, `Loaded album ${fbAlbumId}`);
                 addMessage(L_INFO, `Posting ${imageUrls.length} images`);
@@ -94,6 +147,23 @@ function init() {
             },
             onStatus: (rsp) => {
                 addMessage(L_DEBUG, `Backend is loading album ${fbAlbumId}`);
+            },
+        });
+    });
+
+    window.addEventListener("fetchAlbumsForGroup", function(event) {
+        supLog("GOT fetchAlbumsForGroup EVENT!!!", event);
+        const { fbGroupId } = event.detail;
+        withFbGroupAlbumsTab(fbGroupId, {
+            onSuccess: ({ fbTabId }) => {
+                addMessage(L_INFO, `Loaded albums page for ${fbGroupId}`, fbTabId);
+                refreshAlbums(fbTabId, fbGroupId);
+            },
+            onFailure: (rsp) => {
+                addMessage(L_ERROR, `Couldn't load albums page for ${fbGroupId}`);
+            },
+            onStatus: (rsp) => {
+                addMessage(L_DEBUG, `Backend is loading albums page for ${fbGroupId}`);
             },
         });
     });

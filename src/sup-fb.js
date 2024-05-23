@@ -95,7 +95,61 @@ const loadAlbumPage = (message, sender, sendResponse) => {
     return true;
 };
 
+const loadGroupPage = (message, sender, sendResponse) => {
+    const { fbGroupId } = message;
+    const url = groupUrl(fbGroupId);
+    sendResponse({status: "pending"});
+    // The .then callback will NOT execute if we successfully
+    // navigate to the url. If we successfully navigate then our postNav
+    // object passed to changeUrl here will get picked up by the post nav
+    // task handler mechanism.
+    changeUrl(url, { message, sender })
+        .catch((error) => sendResponse({status: "complete", success: false}));
+    return true;
+};
+
 /// *** END message handlers ***
+
+/// *** BEGIN connection handlers ***
+
+// Should be called from group albums page
+const fetchAlbums = async (port, message) => {
+    port.postMessage({"status": "pending"});
+
+    try {
+        await scrollToBottom();
+    } catch (error) {
+        supLog("Unable to scroll to bottom");
+        port.postMessage({
+            "status": "complete",
+            "success": false,
+            "message": "Unable to scroll to bottom of albums page",
+        });
+    }
+
+    const albumLinksXPath = "//a[contains(@href, 'https://www.facebook.com/media/set/?set=oa.')]";
+    const albumLinks = findElementsByXpath(albumLinksXPath);
+
+    let albums = albumLinks.map(link => {
+        let id = link.href.match(/set=oa\.(\d+)/)[1];
+        let nameSpans = findElementsByXpath(".//span", link);
+        let name = nameSpans.length > 0 ? nameSpans[0].textContent : "Unknown";
+
+        return {
+            name: name,
+            id: id
+        };
+    });
+
+    supLog("Collected albums", albums);
+    port.postMessage({
+        "status": "complete",
+        "success": true,
+        "albums": albums,
+    });
+};
+
+/// *** END connection handlers ***
 
 const executeTask = (task) => {
     supLog("Executing post navigation task", task);
@@ -128,9 +182,20 @@ function init() {
     messaging.init({
         actionListeners: [
             ["loadAlbumPage", loadAlbumPage],
+            ["loadGroupPage", loadGroupPage],
         ],
         proxyActionListeners: [
             ["postImages", proxyPostImages],
+        ],
+        connectionListeners: [
+            [
+                "fetchAlbumsChannel",
+                {
+                    actionListeners: [
+                        ["fetchAlbums", fetchAlbums],
+                    ],
+                },
+            ],
         ],
     });
     handlePostNavigationTasks();

@@ -5,6 +5,7 @@ const supLogInit = (suffix) => _supSuffix = suffix;
 const supLog = (...args) => console.log(`[SUP-${_supSuffix}]`, ...args);
 
 const albumUrl = (albumId) => `https://www.facebook.com/media/set/?set=oa.${albumId}&type=3`;
+const groupUrl = (groupId) => `https://www.facebook.com/groups/${groupId}/media/albums`;
 
 const getRandomNumber = (min, max) => Math.random() * (max - min) + min;
 
@@ -109,14 +110,19 @@ class SUPMessaging {
 
         // Map of requestId -> listeners array
         this._sessionListeners = {};
-        // Map of action -> single listener
+        // {actionName: handlerFn}
         this._actionListeners = {};
-        // Map of proxy action -> single listener
+        // {proxyActionName: handlerFn}
         this._proxyActionListeners = {};
+        // {channelName: {actionName: handlerFn}}
+        this._connectionChannelListeners = {};
     }
 
+    // actionListeners - [[actionName, actionHandlerFn], ...]
+    // proxyListeners - [[actionName, actionHandlerFn], ...]
+    // connectionListeners - [channelName, [[actionName, actionHandlerFn], ...], ...]
     init(options) {
-        const { actionListeners, proxyActionListeners } = options;
+        const { actionListeners, proxyActionListeners, connectionListeners } = options;
         if (actionListeners !== undefined) {
             for (const actionListener of actionListeners) {
                 const [ action, listener ] = actionListener;
@@ -129,7 +135,21 @@ class SUPMessaging {
                 this._proxyActionListeners[proxyAction] = listener;
             }
         }
+        if (connectionListeners !== undefined) {
+            for (const connectionListener of connectionListeners) {
+                const [ channelName, channelInfo ] = connectionListener;
+                const { actionListeners } = channelInfo;
+                if (actionListeners !== undefined) {
+                    this._connectionChannelListeners[channelName] = {};
+                    for (const channelActionListener of actionListeners) {
+                        const [ actionName, listener ] = channelActionListener;
+                        this._connectionChannelListeners[channelName][actionName] = listener;
+                    }
+                }
+            }
+        }
         this.api.runtime.onMessage.addListener(this._handleReceive.bind(this));
+        this.api.runtime.onConnect.addListener(this._handleConnect.bind(this));
     }
 
     // Callers can listen for responses on the returned promise.
@@ -222,5 +242,19 @@ class SUPMessaging {
             return actionFn(message, sender, sendResponse);
         }
         return false;
+    }
+
+    _handleConnect(port, message) {
+        supLog("_handleConnect", { port, message }, this._connectionChannelListeners);
+        const channelActions = this._connectionChannelListeners[port.name];
+        if (channelActions === undefined)
+            return;
+        port.onMessage.addListener((message) => {
+            supLog(`got message for ${port.name}`, {message, port, channelActions});
+            const actionFn = channelActions[message.action];
+            if (actionFn === undefined)
+                return;
+            actionFn(port, message);
+        });
     }
 }
