@@ -1,0 +1,22 @@
+html {
+    min-height: 600px;
+    min-width: 300px;
+    background: #fbfbfb;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+.top-logo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100px;
+    margin-top: 20px;
+}
+
+.top-logo img {
+    border-radius: 5px;
+}

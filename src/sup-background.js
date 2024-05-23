@@ -4,6 +4,7 @@
 const api = typeof browser === 'undefined' ? chrome : browser;
 
 const supLog = (...args) => console.log("[SUP-BG]", ...args);
+const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 const albumNavHandlers = {};
 
@@ -102,6 +103,23 @@ const gotoAlbum = (port, message) => {
             action: "loadAlbumPage",
             fbAlbumId,
             originalMessage: message,
+        });
+    });
+};
+
+const fetchAlbums = (port, message) => {
+    port.postMessage({status: "pending"});
+    sleep(2000).then(() => {
+        port.postMessage({
+            "status": "complete",
+            "success": true,
+            "albums": [{
+                "name": "My face is cool",
+                "id": "3429873247829892834",
+            }, {
+                "name": "i like pizza",
+                "id": "1727171711771717",
+            }],
         });
     });
 };
@@ -206,10 +224,13 @@ const portRoutes = {
     "gotoAlbumChannel": {
         "gotoAlbum": gotoAlbum,
     },
+    "popupChannel": {
+        "fetchAlbums": fetchAlbums,
+    },
 };
 
 function onMessage(message, sender, sendResponse) {
-    supLog(`got message from ${sender.tab.id}`, message.action, message);
+    supLog(`got message from ${sender}`, message.action, message);
     const actionFn = messageActions[message.action];
     if (actionFn !== undefined) {
         return actionFn(message, sender, sendResponse);
