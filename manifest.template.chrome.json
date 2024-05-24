@@ -23,6 +23,7 @@
         ],
         "js": [
             "${BROWSER_POLYFILL}",
+            "js.cookie.js",
             "sup-common.js",
             "sup-dom.js",
             "sup-message-area.js",
@@ -35,6 +36,7 @@
         ],
         "js": [
             "${BROWSER_POLYFILL}",
+            "js.cookie.js",
             "sup-common.js",
             "sup-dom.js",
             "sup-message-area.js",
