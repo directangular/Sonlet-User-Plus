@@ -29,10 +29,14 @@ const filenameFromUrl = (url) => {
 };
 
 // wrap fetch to include auth headers, etc
-const supFetch = (url, options) => {
-    options.headers = {
-        "X-CSRFToken": Cookies.get("str-csrftoken"),
-        ...options.headers,
+const supFetch = (url, method, data) => {
+    const options = {
+        method: method,
+        headers: {
+            "content-type": "application/json",
+            "X-CSRFToken": Cookies.get("str-csrftoken"),
+        },
+        body: JSON.stringify(data),
     };
     return fetch(url, {
         credentials: "same-origin",

@@ -1,3 +1,6 @@
+const $byId = document.getElementById.bind(document);
+const $byClass = document.getElementsByClassName.bind(document);
+
 const $X = (
     xpath,
     contextNode = document,

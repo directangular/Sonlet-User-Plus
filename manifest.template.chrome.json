@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Sonlet Uploader",
+    "name": "Sonlet User Plus",
     "version": "${VERSION}",
-    "description": "Posts your Sonlet inventory to Facebook.",
+    "description": "Supercharge your Sonlet!",
     "icons": {
         "48": "icons/sup-icon-48x48.png"
     },
@@ -29,7 +29,7 @@
             "sup-message-area.js",
             "sup-sonlet.js"
         ],
-        "css": ["sup-message-area.css"]
+        "css": ["sup-message-area.css", "sup-sonlet.css"]
     }, {
         "matches": [
             "https://www.facebook.com/*"
