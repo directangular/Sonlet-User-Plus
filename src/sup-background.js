@@ -6,7 +6,7 @@ const api = typeof browser === 'undefined' ? chrome : browser;
 const supLog = (...args) => console.log("[SUP-BG]", ...args);
 const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
-const USE_DEV_SONLET = true;
+const USE_DEV_SONLET = false;
 
 const sonletBaseUrl = () => USE_DEV_SONLET ? "http://localhost:8000/" : "https://sonlet.com/";
 
