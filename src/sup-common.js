@@ -5,7 +5,7 @@ const supLogInit = (suffix) => _supSuffix = suffix;
 const supLog = (...args) => console.log(`[SUP-${_supSuffix}]`, ...args);
 
 const albumUrl = (albumId) => `https://www.facebook.com/media/set/?set=oa.${albumId}&type=3`;
-const groupUrl = (groupId) => `https://www.facebook.com/groups/${groupId}/media/albums`;
+const groupAlbumsUrl = (groupId) => `https://www.facebook.com/groups/${groupId}/media/albums`;
 
 const getRandomNumber = (min, max) => Math.random() * (max - min) + min;
 
@@ -128,6 +128,8 @@ class SUPMessaging {
         this._sessionListeners = {};
         // {actionName: handlerFn}
         this._actionListeners = {};
+        // {actionName: handlerFn}
+        this._windowEventListeners = {};
         // {proxyActionName: handlerFn}
         this._proxyActionListeners = {};
         // {channelName: {actionName: handlerFn}}
@@ -135,14 +137,26 @@ class SUPMessaging {
     }
 
     // actionListeners - [[actionName, actionHandlerFn], ...]
+    // windowEventListeners - [[actionName, actionHandlerFn]]
     // proxyListeners - [[actionName, actionHandlerFn], ...]
     // connectionListeners - [channelName, [[actionName, actionHandlerFn], ...], ...]
     init(options) {
-        const { actionListeners, proxyActionListeners, connectionListeners } = options;
+        const {
+            actionListeners,
+            windowEventListeners,
+            proxyActionListeners,
+            connectionListeners,
+        } = options;
         if (actionListeners !== undefined) {
             for (const actionListener of actionListeners) {
                 const [ action, listener ] = actionListener;
                 this._actionListeners[action] = listener;
+            }
+        }
+        if (windowEventListeners !== undefined) {
+            for (const windowEventListener of windowEventListeners) {
+                const [ action, listener ] = windowEventListener;
+                this._windowEventListeners[action] = listener;
             }
         }
         if (proxyActionListeners !== undefined) {
@@ -166,6 +180,7 @@ class SUPMessaging {
         }
         this.api.runtime.onMessage.addListener(this._handleReceive.bind(this));
         this.api.runtime.onConnect.addListener(this._handleConnect.bind(this));
+        window.addEventListener("message", this._handleWindowEventMessage.bind(this));
     }
 
     // Callers can listen for responses on the returned promise.
@@ -258,6 +273,16 @@ class SUPMessaging {
             return actionFn(message, sender, sendResponse);
         }
         return false;
+    }
+
+    _handleWindowEventMessage(event) {
+        if (event.source === window) {
+            const actionFn = this._windowEventListeners[event.data.action];
+            if (actionFn !== undefined) {
+                supLog("_handleWindowEventMessage", { event }, this._windowEventListeners);
+                return actionFn(event.data, event);
+            }
+        }
     }
 
     _handleConnect(port, message) {

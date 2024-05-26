@@ -101,9 +101,13 @@ const waitForPageLoad = (tabId) => {
 };
 
 // callback takes one arg: tab
-const withFacebookTab = (callback) => {
+const withFacebookTab = (callback, options = {}) => {
+    const { foreground } = options;
     // TODO: Create recyclable FB tab pool
-    api.tabs.create({ url: "https://www.facebook.com/groups/feed/", active: false }, (newTab) => {
+    api.tabs.create({
+        url: "https://www.facebook.com/groups/feed/",
+        active: foreground || false,
+    }, (newTab) => {
         function checkTabAndExecuteCallback(tabId, changeInfo, tab) {
             if (tabId === newTab.id && changeInfo.status === 'complete') {
                 supLog("Have FB tab", tab.id, { tab });
@@ -156,26 +160,33 @@ const gotoAlbum = (port, message) => {
     });
 };
 
-const gotoGroup = (port, message) => {
-    const { fbGroupId } = message;
+const gotoGroupAlbums = (port, message) => {
+    const { fbGroupId, foreground } = message;
     port.postMessage({status: "pending"});
-    withFacebookTab((tab) => {
-        // The loadGroupPage message handler in sup-fb.js cannot send a
-        // response since the tab changes URLs and thus closes the
-        // connection. Instead, we add a group nav handler which gets
-        // called in the navComplete handler below (which is the handler
-        // for the message that gets sent from the fb tab when it loads and
-        // finds a post nav task).
-        addGroupNavHandler(fbGroupId, tab.id, (message) => {
-            supLog("Group nav handled. Notifying sonlet.js", {fbGroupId, tab, message});
-            port.postMessage({status: "complete", success: true, fbTabId: tab.id});
-        });
-        // TODO: add timeout that will do a port.postMessage({status: "complete", success: false});
-        api.tabs.sendMessage(tab.id, {
-            action: "loadGroupPage",
-            fbGroupId,
-            originalMessage: message,
-        });
+    getCurrentTab().then((currentTab) => {
+        withFacebookTab((tab) => {
+            // The loadGroupPage message handler in sup-fb.js cannot send a
+            // response since the tab changes URLs and thus closes the
+            // connection. Instead, we add a group nav handler which gets
+            // called in the navComplete handler below (which is the handler
+            // for the message that gets sent from the fb tab when it loads and
+            // finds a post nav task).
+            addGroupNavHandler(fbGroupId, tab.id, (message) => {
+                supLog("Group nav handled. Notifying sonlet.js", {fbGroupId, tab, currentTab, message});
+                port.postMessage({
+                    status: "complete",
+                    success: true,
+                    fbTabId: tab.id,
+                    previousTabId: currentTab.id,
+                });
+            });
+            // TODO: add timeout that will do a port.postMessage({status: "complete", success: false});
+            api.tabs.sendMessage(tab.id, {
+                action: "loadGroupAlbumsPage",
+                fbGroupId,
+                originalMessage: message,
+            });
+        }, { foreground });
     });
 };
 
@@ -261,6 +272,24 @@ const linkFbGroup = (message, sender, sendResponse) => {
     return true;
 };
 
+const onCloseTab = (message, sender, sendResponse) => {
+    // restore the previous tab, and then close the target tab
+    api.tabs.update(message.tabIdToRestore, { active: true }, (tab) => {
+        if (api.runtime.lastError) {
+            sendResponse({success: false, error: api.runtime.lastError.message});
+        } else {
+            api.tabs.remove(message.tabId, () => {
+                if (api.runtime.lastError) {
+                    sendResponse({success: false, error: api.runtime.lastError.message});
+                } else {
+                    sendResponse({success: true});
+                }
+            });
+        }
+    });
+    return true;
+};
+
 const checkForPostNavigationTask = (message, sender, sendResponse) => {
     const tabId = sender.tab.id;
     if (pendingTasks.has(tabId)) {
@@ -289,7 +318,7 @@ const navComplete = (message, sender, sendResponse) => {
         supLog("have", {originalMessageInner});
         if (originalMessageInner.action === "gotoAlbum") {
             runAlbumNavHandlers(originalMessageInner.fbAlbumId, sender.tab.id, originalMessageInner);
-        } else if (originalMessageInner.action === "gotoGroup") {
+        } else if (originalMessageInner.action === "gotoGroupAlbums") {
             runGroupNavHandlers(originalMessageInner.fbGroupId, sender.tab.id, originalMessageInner);
         }
     }
@@ -318,6 +347,7 @@ const messageActions = {
     "changeUrl": changeUrl,
     "getFbGroupDetailsOfCurrentTab": getFbGroupDetailsOfCurrentTab,
     "linkFbGroup": linkFbGroup,
+    "closeTab": onCloseTab,
     // plumbing
     "checkForPostNavigationTask": checkForPostNavigationTask,
     "navComplete": navComplete,
@@ -330,7 +360,7 @@ const portRoutes = {
         "gotoAlbum": gotoAlbum,
     },
     "gotoGroupChannel": {
-        "gotoGroup": gotoGroup,
+        "gotoGroupAlbums": gotoGroupAlbums,
     },
     "fetchAlbumsChannel": {
         "fetchAlbums": fetchAlbums,

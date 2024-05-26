@@ -17,12 +17,14 @@ const changeUrl = async (url, postNav) => {
     }
 };
 
-const addImageToUploadQueue = async (file) => {
+const addImageToUploadQueue = async (file, caption) => {
     // Get the file input element and set the File object
     const fileInput = document.querySelector('input[type="file"]');
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     fileInput.files = dataTransfer.files;
+
+    // TODO: add caption
 
     // Trigger events to let Facebook know the input changed
     const event = new Event('change', { bubbles: true });
@@ -31,10 +33,11 @@ const addImageToUploadQueue = async (file) => {
 
 /// *** BEGIN proxy message handlers ***
 
+// We must already be on the album page
 const proxyPostImages = (message, session) => {
-    const { handles, fbAlbumId } = message;
+    const { cachedFbImages, fbAlbumId } = message;
     session.sendProxyResponse({status: "pending", message: "(Starting)"});
-    supLog(`Posting ${handles.length} images to ${fbAlbumId}`);
+    supLog(`Posting ${cachedFbImages.length} images to ${fbAlbumId}`);
     let results, btn;
     (async () => {
         // first, navigate to the upload screen
@@ -49,7 +52,8 @@ const proxyPostImages = (message, session) => {
         btn.click();
         await sleep(1000);
         // Now add the images to the upload area
-        for (const handle of handles) {
+        for (const cachedFbImage of cachedFbImages) {
+            const { handle, caption } = cachedFbImage;
             supLog("Grabbing from storage", handle);
             const file = await storage.getFile(handle);
             supLog("Got file", file);
@@ -57,7 +61,7 @@ const proxyPostImages = (message, session) => {
                 status: "pending",
                 message: `Adding ${file.name} to post queue`,
             });
-            addImageToUploadQueue(file);
+            addImageToUploadQueue(file, caption);
             supLog("One down... Sleeping a bit for observation");
             await sleepWithJitter(1000);
         }
@@ -95,9 +99,9 @@ const loadAlbumPage = (message, sender, sendResponse) => {
     return true;
 };
 
-const loadGroupPage = (message, sender, sendResponse) => {
+const loadGroupAlbumsPage = (message, sender, sendResponse) => {
     const { fbGroupId } = message;
-    const url = groupUrl(fbGroupId);
+    const url = groupAlbumsUrl(fbGroupId);
     sendResponse({status: "pending"});
     // The .then callback will NOT execute if we successfully
     // navigate to the url. If we successfully navigate then our postNav
@@ -210,7 +214,7 @@ function init() {
     messaging.init({
         actionListeners: [
             ["loadAlbumPage", loadAlbumPage],
-            ["loadGroupPage", loadGroupPage],
+            ["loadGroupAlbumsPage", loadGroupAlbumsPage],
             ["getFbGroupDetails", getFbGroupDetails],
         ],
         proxyActionListeners: [

@@ -12,7 +12,7 @@
             "24": "icons/sup-icon-24x24.png",
             "32": "icons/sup-icon-32x32.png"
         },
-        "default_title": "Sonlet Uploader",
+        "default_title": "Sonlet User Plus",
         "default_popup": "popup.html"
     },
     "content_scripts": [{
