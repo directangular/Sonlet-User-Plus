@@ -1,8 +1,6 @@
 const storage = new SUPStorage();
 const messaging = new SUPMessaging(browser);
 
-const getSUPContainer = () => $byId("id_SUPContainer");
-
 const withFbAlbumTab = (fbAlbumId, {onSuccess, onFailure, onStatus}) => {
     const port = browser.runtime.connect({name: "gotoAlbumChannel"});
     port.onMessage.addListener((msg) => {
@@ -200,164 +198,6 @@ const navComplete = (message, sender, sendResponse) => {
 
 /// *** END message handlers ***
 
-/// *** BEGIN route handlers ***
-
-let selectedItemPks = [];
-let selectedAlbum = null;
-
-const refreshPostButtonDisability = () => {
-    $byId("id_SUPPostBtn").disabled = selectedItemPks.length === 0 || selectedAlbum === null;
-};
-
-const setSelectedItemPks = (itemPks) => {
-    selectedItemPks = itemPks;
-    $byId("id_SUPHeader").innerHTML = `${itemPks.length} items selected`;
-    refreshPostButtonDisability();
-};
-
-const setSelectedAlbum = (album) => {
-    selectedAlbum = album;
-    refreshPostButtonDisability();
-};
-
-const updateGroupSelect = (fbGroups, initiallySelectedGroupId) => {
-    const groupSelect = $byId("id_SUPGroupSelect");
-    const placeHolderOption = fbGroups.length === 0
-          ? '<option value="">No groups found... Please link some groups.</option>'
-          : '<option value="">Select a group</option>';
-    const newGroupOptions = fbGroups.map(group =>
-        `<option value="${group.fbid}">${group.name}</option>`
-    ).join('');
-    groupSelect.innerHTML = placeHolderOption + newGroupOptions;
-    if (initiallySelectedGroupId) {
-        groupSelect.value = initiallySelectedGroupId;
-    }
-    groupSelect.disabled = fbGroups.length === 0;
-};
-
-const setupGroupSelectListener = (fbGroups) => {
-    const groupSelect = $byId("id_SUPGroupSelect");
-    const albumSelect = $byId("id_SUPAlbumSelect");
-    const groupInfo = $byId("id_SUPGroupInfo");
-
-    groupSelect.addEventListener("change", () => {
-        const selectedGroup = fbGroups.find(group => group.fbid === groupSelect.value);
-        if (!selectedGroup) {
-            supLog("Couldn't find group", groupSelect.value, fbGroups);
-            return;
-        }
-
-        groupInfo.innerHTML = `
-<button class="btn btn-default" id="id_refreshAlbumsBtn" type="button">Refresh Albums</button>
-Last albums refresh: ${selectedGroup.last_refreshed_albums || 'Never'}
-`;
-
-        $byId("id_refreshAlbumsBtn").addEventListener("click", () => {
-            refreshAlbumsForGroup(selectedGroup);
-        });
-
-        albumSelect.innerHTML = selectedGroup.albums.map(album =>
-            `<option value="${album.fbid}">${album.name}</option>`
-        ).join('');
-        albumSelect.disabled = selectedGroup.albums.length === 0;
-
-        albumSelect.addEventListener("change", () => {
-            supLog("album selection change", albumSelect, selectedGroup);
-            const selectedAlbum = selectedGroup.albums.find(alb => alb.fbid === albumSelect.value);
-            setSelectedAlbum(selectedAlbum);
-        });
-    });
-};
-
-const updatePostingUI = (fbGroups, initiallySelectedGroupId = null) => {
-    updateGroupSelect(fbGroups, initiallySelectedGroupId);
-    setupGroupSelectListener(fbGroups);
-};
-
-const initFbPickUI = (initiallySelectedGroupId = null) => {
-    // Initialize the SUP container with the relevant UI
-    getSUPContainer().innerHTML = `<div>
-<div id="id_SUPHeader"></div>
-<select id="id_SUPGroupSelect" class="form-control" disabled><option>...</option></select>
-<div id="id_SUPGroupInfo"></div>
-<select id="id_SUPAlbumSelect" class="form-control" disabled><option>...</option></select>
-<button id="id_SUPPostBtn" class="btn btn-primary" type="button" disabled>Post</button>
-</div>`;
-
-    window.addEventListener("onSelectedItemPks", function(event) {
-        supLog("GOT onSelectedItemPks EVENT!!!", event);
-        setSelectedItemPks(event.detail.itemPks);
-    });
-
-    $byId("id_SUPPostBtn").addEventListener("click", () => {
-        supLog("Would like to post!!!!", selectedItemPks, selectedAlbum);
-        supFetch("/api/v2/get_item_images/", "POST", {item_pks: selectedItemPks})
-            .then(async rsp => {
-                if (!rsp.ok) {
-                    supLog("Failed to get item images", rsp, selectedAlbum, selectedItemPks);
-                    addMessage(L_ERROR, `Failed to get item images: ${rsp.statusText}`);
-                    return;
-                }
-                const json = await rsp.json();
-                supLog("Got item images", json, selectedAlbum, selectedItemPks);
-                const imageUrls = json.results.map(info => info.image_url);
-                const fbAlbumId = selectedAlbum.fbid;
-                withFbAlbumTab(fbAlbumId, {
-                    onSuccess: ({ fbTabId }) => {
-                        addMessage(L_INFO, `Loaded album ${fbAlbumId}`);
-                        addMessage(L_INFO, `Posting ${imageUrls.length} images`);
-                        postImagesToFb(fbTabId, fbAlbumId, imageUrls);
-                    },
-                    onFailure: (rsp) => {
-                        addMessage(L_ERROR, `Couldn't load album ${fbAlbumId}`);
-                    },
-                    onStatus: (rsp) => {
-                        addMessage(L_DEBUG, `Backend is loading album ${fbAlbumId}`);
-                    },
-                });
-            })
-            .catch(error => {
-                supLog("Error getting item images", error, selectedAlbum, selectedItemPks);
-                addMessage(L_ERROR, `Error getting item images: ${error}`);
-            });
-    });
-
-    supFetch("/api/v2/sup_get_groups_info/", "GET")
-        .then(async rsp => {
-            return [rsp, await rsp.json()];
-        })
-        .then(([rsp, json]) => {
-            if (!rsp.ok) {
-                addMessage(L_ERROR, `Couldn't load FB group info: ${json.message}`);
-            } else {
-                supLog("Got SUP groups info", json);
-                updatePostingUI(json.results, initiallySelectedGroupId);
-            }
-        });
-};
-
-const routeListings = () => {
-    supLog("routeListings!!!");
-    initFbPickUI();
-};
-/// *** END route handlers ***
-
-const routes = [{
-    pathRegex: /\/inventory\/(listed|listings)\/.*/,
-    handler: routeListings,
-}];
-
-// Runs the first route from routes that matches the current URL
-const runRoutes = () => {
-    const urlPath = window.location.pathname;
-    for (let route of routes) {
-        if (urlPath.match(route.pathRegex)) {
-            route.handler();
-            return;
-        }
-    }
-};
-
 function init() {
     supLogInit("SONLET");
     supLog("Init sup-sonlet.js");
@@ -370,7 +210,6 @@ function init() {
         ],
         proxyActionListeners: [],
     });
-    runRoutes();
 
     // For testing (TODO: break out similar to messageActions)
     window.addEventListener("gotoAlbum", function(event) {

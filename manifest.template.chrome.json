@@ -29,7 +29,7 @@
             "sup-message-area.js",
             "sup-sonlet.js"
         ],
-        "css": ["sup-message-area.css", "sup-sonlet.css"]
+        "css": ["sup-message-area.css"]
     }, {
         "matches": [
             "https://www.facebook.com/*"
