@@ -65,7 +65,8 @@ const onSendToSonletClick = async (event, details) => {
         addMessage("Done!");
         enableCongratsMode(fbGroupName);
     } else {
-        addMessage(`Failed to link group: ${rsp.data.message}`);
+        const errMsg = rsp?.data?.message ?? "Unknown error";
+        addMessage(`Failed to link group: ${errMsg}`);
     }
 };
 
