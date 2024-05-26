@@ -1,10 +1,19 @@
 {
     "manifest_version": 3,
-    "name": "Sonlet Uploader",
+    "name": "Sonlet User Plus",
     "version": "${VERSION}",
-    "description": "Posts your Sonlet inventory to Facebook.",
+    "description": "Supercharge your Sonlet!",
     "icons": {
         "48": "icons/sup-icon-48x48.png"
+    },
+    "action": {
+        "default_icon": {
+            "16": "icons/sup-icon-16x16.png",
+            "24": "icons/sup-icon-24x24.png",
+            "32": "icons/sup-icon-32x32.png"
+        },
+        "default_title": "Sonlet User Plus",
+        "default_popup": "popup.html"
     },
     "content_scripts": [{
         "matches": [
@@ -14,18 +23,20 @@
         ],
         "js": [
             "${BROWSER_POLYFILL}",
+            "js.cookie.js",
             "sup-common.js",
             "sup-dom.js",
             "sup-message-area.js",
             "sup-sonlet.js"
         ],
-        "css": ["sup-message-area.css"]
+        "css": ["sup-message-area.css", "sup-sonlet.css"]
     }, {
         "matches": [
             "https://www.facebook.com/*"
         ],
         "js": [
             "${BROWSER_POLYFILL}",
+            "js.cookie.js",
             "sup-common.js",
             "sup-dom.js",
             "sup-message-area.js",
@@ -36,6 +47,6 @@
         "scripts": ["sup-background.js"]
     },
     "permissions": [
-        "storage"
+        "tabs", "activeTab", "storage"
     ]
 }
