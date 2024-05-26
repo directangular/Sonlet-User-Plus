@@ -67,6 +67,49 @@ const postImagesToFb = async (fbTabId, fbAlbumId, imageUrls) => {
     session.sendProxyMessage("postImages", {fbAlbumId, handles});
 };
 
+const refreshAlbumsForGroup = (fbGroupId, {onSuccess, onFailure}) => {
+    withFbGroupAlbumsTab(fbGroupId, {
+        onSuccess: ({ fbTabId }) => {
+            addMessage(L_INFO, `Loaded albums page for ${fbGroupId}`, fbTabId);
+            retrieveGroupAlbumsFromTab(fbTabId, fbGroupId)
+                .then(albums => {
+                    supLog("Got some albums from tab", albums, fbTabId, fbGroupId);
+                    // TODO: close fbTabId (maybe add arg to retrieveGroupAlbumsFromTab?)
+                    supFetch("/api/v2/sup_link_fb_albums/", "POST", {
+                        group_fbid: fbGroupId,
+                        album_infos: albums,
+                    })
+                        .then(rsp => {
+                            supLog("link albums response", rsp);
+                            if (rsp.ok) {
+                                onSuccess();
+                            } else {
+                                supLog("Failed to post new albums", rsp);
+                                addMessage(L_ERROR, `Failed to post new albums: ${rsp.statusText}`);
+                                onFailure();
+                            }
+                        })
+                        .catch(error => {
+                            supLog("Error while posting new albums", error);
+                            addMessage(L_ERROR, `Error posting new ablums: ${error}`);
+                            onFailure();
+                        });
+                })
+                .catch(error => {
+                    supLog("Error getting albums from tab", error, fbTabId, fbGroupId);
+                    onFailure();
+                });
+        },
+        onFailure: (rsp) => {
+            addMessage(L_ERROR, `Couldn't load albums page for ${fbGroupId}`);
+            onFailure();
+        },
+        onStatus: (rsp) => {
+            addMessage(L_DEBUG, `Backend is loading albums page for ${fbGroupId}`);
+        },
+    });
+};
+
 const fetchAlbumsForTabFromBackend = (fbTabId) => {
     return new Promise((resolve, reject) => {
         const port = browser.runtime.connect({name: "fetchAlbumsChannel"});
@@ -122,6 +165,31 @@ const linkFbGroup = (message, sender, sendResponse) => {
     return true;
 };
 
+const reportRefreshResults = (success, message) => {
+    // const evt = new CustomEvent("refreshAlbumsForFbGroupResults", {
+    //     detail: { success, message }
+    // });
+    // window.dispatchEvent(evt);
+    window.postMessage({
+        action: "refreshAlbumsForFbGroupResults",
+        success,
+        message,
+    }, '*');
+};
+
+// Responds by sending a message to refreshAlbumsForFbGroupResults
+const refreshAlbumsForFbGroup = (message, sender, sendResponse) => {
+    const { fbGroupId } = message;
+    refreshAlbumsForGroup(fbGroupId, {
+        onSuccess: () => {
+            reportRefreshResults(true, "Albums refreshed");
+        },
+        onFailure: () => {
+            reportRefreshResults(false, "Failed to refresh albums");
+        },
+    });
+};
+
 const navComplete = (message, sender, sendResponse) => {
     supLog("FIXMEEEEEEE NAV COMPLETE!!!", message, sender);
     // lots of message proxying :sob:
@@ -165,46 +233,6 @@ const updateGroupSelect = (fbGroups, initiallySelectedGroupId) => {
         groupSelect.value = initiallySelectedGroupId;
     }
     groupSelect.disabled = fbGroups.length === 0;
-};
-
-const refreshAlbumsForGroup = (fbGroup) => {
-    const fbGroupId = fbGroup.fbid;
-    withFbGroupAlbumsTab(fbGroupId, {
-        onSuccess: ({ fbTabId }) => {
-            addMessage(L_INFO, `Loaded albums page for ${fbGroupId}`, fbTabId);
-            retrieveGroupAlbumsFromTab(fbTabId, fbGroupId)
-                .then(albums => {
-                    supLog("Got some albums from tab", albums, fbTabId, fbGroupId);
-                    // TODO: close fbTabId (maybe add arg to retrieveGroupAlbumsFromTab?)
-                    supFetch("/api/v2/sup_link_fb_albums/", "POST", {
-                        group_fbid: fbGroupId,
-                        album_infos: albums,
-                    })
-                        .then(rsp => {
-                            supLog("link albums response", rsp);
-                            if (rsp.ok) {
-                                initFbPickUI(fbGroupId);
-                            } else {
-                                supLog("Failed to post new albums", rsp);
-                                addMessage(L_ERROR, `Failed to post new albums: ${rsp.statusText}`);
-                            }
-                        })
-                        .catch(error => {
-                            supLog("Error while posting new albums", error);
-                            addMessage(L_ERROR, `Error posting new ablums: ${error}`);
-                        });
-                })
-                .catch(error => {
-                    supLog("Error getting albums from tab", error, fbTabId, fbGroupId);
-                });
-        },
-        onFailure: (rsp) => {
-            addMessage(L_ERROR, `Couldn't load albums page for ${fbGroupId}`);
-        },
-        onStatus: (rsp) => {
-            addMessage(L_DEBUG, `Backend is loading albums page for ${fbGroupId}`);
-        },
-    });
 };
 
 const setupGroupSelectListener = (fbGroups) => {
@@ -337,6 +365,7 @@ function init() {
     messaging.init({
         actionListeners: [
             ["linkFbGroup", linkFbGroup],
+            ["refreshAlbumsForFbGroup", refreshAlbumsForFbGroup],
             ["navComplete", navComplete],
         ],
         proxyActionListeners: [],
