@@ -4,7 +4,9 @@ Plus up yer Sonlet!
 
 ## Installation
 
-Chrome Webstore and Firefox Add-Ons links coming soon...
+Sonlet User Plus is available on the Chrome Web Store:
+
+[![Chrome Web Store Badge](chrome-webstore-badge.png)](https://chromewebstore.google.com/detail/sonlet-user-plus/fffgbegeifgeemcbfochglhgpgnpdfig)
 
 ## Manual Installation
 
