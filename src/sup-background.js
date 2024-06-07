@@ -253,7 +253,11 @@ const getFbGroupDetailsOfCurrentTab = (message, sender, sendResponse) => {
             action: "getFbGroupDetails",
         }).then(rsp => {
             sendResponse(rsp);
+        }).catch(error => {
+            supLog("Error sending fb group details", error);
         });
+    }).catch(error => {
+        supLog("Error getting current tab", error);
     });
     return true;
 };

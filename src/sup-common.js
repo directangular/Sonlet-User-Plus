@@ -271,6 +271,8 @@ class SUPMessaging {
             // Pass along return value so that clients can make use of
             // sendResponse
             return actionFn(message, sender, sendResponse);
+        } else {
+            supLog("Unhandled message", message.action, Object.keys(this._actionListeners));
         }
         return false;
     }
