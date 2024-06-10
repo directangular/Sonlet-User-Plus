@@ -29,6 +29,7 @@
 
 .SUP-message-area.collapsed {
     right: -180px; /* Width of the message area minus the width of the toggle button */
+    display: none; /* Toggle isn't actually working, just hide it completely */
 }
 
 .SUP-message-toggle.collapsed {
