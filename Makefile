@@ -1,5 +1,5 @@
 NAME = sonlet-user-plus
-VERSION = 1.0
+VERSION = 1.1
 BROWSER_POLYFILL ?= browser-polyfill.min.js
 ZIP = zip --quiet
 
