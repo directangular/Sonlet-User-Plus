@@ -38,7 +38,7 @@ const deactivateUI = () => {
     console.log("deactivating UI");
     setLogoActive(false);
     setTitle("");
-    setCTA("Nothing to do here!");
+    setCTA("Nothing to do here! Please visit the admin Group Settings page of a group you'd like to link to Sonlet.");
     setLogoClickHandler(() => {});
 };
 
