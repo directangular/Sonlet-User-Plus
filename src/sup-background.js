@@ -248,10 +248,13 @@ const changeUrl = (message, sender, sendResponse) => {
 };
 
 const getFbGroupDetailsOfCurrentTab = (message, sender, sendResponse) => {
+    supLog("Getting deets of current tab", {message, sender, sendResponse});
     getCurrentTab().then(tab => {
+        supLog("Will send getFbGroupDetails", tab);
         api.tabs.sendMessage(tab.id, {
             action: "getFbGroupDetails",
         }).then(rsp => {
+            supLog("Will sendResponse", rsp);
             sendResponse(rsp);
         }).catch(error => {
             supLog("Error sending fb group details", error);
