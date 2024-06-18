@@ -128,8 +128,16 @@ const getFbGroupDetails = (message, sender, sendResponse) => {
         fbGroupName = elements[0].textContent.trim();
     }
 
-    // Construct the XPath for the picture URL using the retrieved fbGroupName
-    const pictureXpath = `//a[@aria-label='${fbGroupName}' and contains(normalize-space(@href), '${groupUrl}') and @role='link']//image/@*[local-name()='href']`;
+    // Xpath escaping fiascos! fbGroupName needs to be escaped since it
+    // could contain single quotes that will break the xpath (by
+    // prematurely terminating the expression). We replace all single
+    // quotes with a sequence of characters that look like comma-separate
+    // arguments that will be passed to concat() in the xpath. The
+    // arguments terminate the string, adds the desired single quote, and
+    // re-opens the string.
+    const fbGroupNameEscaped = fbGroupName.replace(/'/g, '", "\'", "');
+    const pictureXpath = `//a[@aria-label=concat("${fbGroupNameEscaped}", '') and contains(normalize-space(@href), '${groupUrl}') and @role='link']//image/@*[local-name()='href']`;
+    // const pictureXpath = `//a[@aria-label='${fbGroupName}' and contains(normalize-space(@href), '${groupUrl}') and @role='link']//image/@*[local-name()='href']`;
     const pictureElements = $X(pictureXpath);
 
     let pictureUrl = null;
