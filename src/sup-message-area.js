@@ -67,8 +67,6 @@ const addMessage = (level, message) => {
 };
 
 const initMessageArea = () => {
-    supLog("lvl names", _levelNames, getLevelName(L_INFO));
-    supLog("lvl classes", _levelClasses, getLevelMessageClass(L_INFO));
     const messageAreaHTML = `
         <div id="SUP-messageArea" class="SUP-message-area collapsed">
             <div class="SUP-message-toggle">Hide</div>
