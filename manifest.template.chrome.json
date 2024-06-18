@@ -26,8 +26,8 @@
             "http://localhost:8000/*"
         ],
         "js": [
-            "${BROWSER_POLYFILL}",
             "js.cookie.js",
+            "sup-fake-polyfill.js",
             "sup-common.js",
             "sup-dom.js",
             "sup-message-area.js",
@@ -39,8 +39,8 @@
             "https://www.facebook.com/*"
         ],
         "js": [
-            "${BROWSER_POLYFILL}",
             "js.cookie.js",
+            "sup-fake-polyfill.js",
             "sup-common.js",
             "sup-dom.js",
             "sup-message-area.js",
