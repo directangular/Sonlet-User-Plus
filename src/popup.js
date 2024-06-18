@@ -73,7 +73,7 @@ const onSendToSonletClick = async (event, details) => {
 const loadGroupDetails = async (fbGroupId) => {
     const rsp = await messaging.sendMessageToBackground("getFbGroupDetailsOfCurrentTab");
     supLog("GOT FB DEETS", rsp);
-    if (rsp.success === true) {
+    if (rsp && rsp.success === true) {
         return {
             fbGroupId,
             fbGroupName: rsp.fbGroupName,
