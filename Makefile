@@ -1,5 +1,5 @@
 NAME = sonlet-user-plus
-VERSION = 1.1
+VERSION = 1.2
 ZIP = zip --quiet
 
 render_manifest_chrome: manifest.template.chrome.json
