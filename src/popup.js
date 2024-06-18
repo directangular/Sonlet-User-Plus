@@ -113,6 +113,7 @@ const checkRoutes = () => {
                     setLoading(false);
                     if (!details) {
                         supLog("Error getting group details");
+                        setCTA("Error getting group details");
                         return;
                     }
                     activateUI(
