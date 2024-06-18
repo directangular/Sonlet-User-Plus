@@ -3,7 +3,16 @@
 // Polyfill to standardize the browser API for both Chrome and Firefox
 const api = typeof browser === 'undefined' ? chrome : browser;
 
-const supLog = (...args) => console.log("[SUP-BG]", ...args);
+// const supLog = (...args) => console.log("[SUP-BG]", ...args);
+const supLog = (...args) => {
+    // All this stack stuff is to get the location of the actual supLog invocation
+    const stack = new Error().stack;
+    const callerLine = stack.split("\n")[2]; // This gets the second line of the stack trace, where the first line is the Error itself
+    const formattedCallerLine = callerLine.substring(callerLine.indexOf("at ") + 3, callerLine.length);
+
+    console.log("[SUP-BG]", ...args, `\n -> at ${formattedCallerLine}`);
+};
+
 const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 const USE_DEV_SONLET = false;

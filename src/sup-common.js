@@ -2,7 +2,15 @@ let _supSuffix = "common";
 
 const supLogInit = (suffix) => _supSuffix = suffix;
 
-const supLog = (...args) => console.log(`[SUP-${_supSuffix}]`, ...args);
+// const supLog = (...args) => console.log(`[SUP-${_supSuffix}]`, ...args);
+const supLog = (...args) => {
+    // All this stack stuff is to get the location of the actual supLog invocation
+    const stack = new Error().stack;
+    const callerLine = stack.split("\n")[2]; // This gets the second line of the stack trace, where the first line is the Error itself
+    const formattedCallerLine = callerLine.substring(callerLine.indexOf("at ") + 3, callerLine.length);
+
+    console.log(`[SUP-${_supSuffix}]`, ...args, `\n -> at ${formattedCallerLine}`);
+};
 
 const albumUrl = (albumId) => `https://www.facebook.com/media/set/?set=oa.${albumId}&type=3`;
 const groupAlbumsUrl = (groupId) => `https://www.facebook.com/groups/${groupId}/media/albums`;
