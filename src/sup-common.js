@@ -58,21 +58,34 @@ class SUPStorage {
     // Returns a storage handle
     async storeUrlAsFile(imageUrl, filename, options = {}) {
         try {
+            const isCached = await this.isImageCached(imageUrl);
+            if (isCached) {
+                supLog(`Already cached: ${imageUrl}`);
+                return imageUrl;
+            }
+
             const response = await fetch(imageUrl);
             if (!response.ok) {
                 throw new Error(`Network response was not ok for ${imageUrl}`);
             }
             const blob = await response.blob();
-            const base64 = await this._blobToBase64(blob);
-            const type = options.type || blob.type;
+            const mimeType = options.type || blob.type;
             const fileData = {
-                base64,
-                type,
+                url: imageUrl,
+                blob,
+                mimeType,
                 filename: filename || filenameFromUrl(imageUrl),
             };
 
-            await browser.storage.local.set({ [imageUrl]: fileData });
-            return imageUrl;
+            const db = await this._openIndexedDB();
+            const txn = db.transaction("images", "readwrite");
+            const store = txn.objectStore("images");
+            store.put(fileData);
+
+            return new Promise((resolve, reject) => {
+                txn.oncomplete = () => resolve(imageUrl);
+                txn.onerror = (event) => reject(event.target.error);
+            });
         } catch (error) {
             supLog('Failed to store image:', error);
             throw error;
@@ -80,33 +93,69 @@ class SUPStorage {
     }
 
     async getFile(handle) {
-        const result = await browser.storage.local.get(handle);
-        if (result[handle]) {
-            const { base64, type, filename } = result[handle];
-            return this._base64ToFile(base64, filename, type);
+        try {
+            const db = await this._openIndexedDB();
+            const txn = db.transaction("images", "readonly");
+            const store = txn.objectStore("images");
+
+            return new Promise((resove, reject) => {
+                const request = store.get(handle);
+
+                request.onsuccess = (event) => {
+                    const result = event.target.result;
+                    if (result) {
+                        const file = new File([result.blob], result.filename, { type: result.type });
+                        resolve(file);
+                    } else {
+                        reject(new Error(`No file found for handle: ${handle}`));
+                    }
+                };
+
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        } catch (error) {
+            supLog('Failed to retrieve file:', handle, error);
+            throw error;
         }
-        return null;
     }
 
-    async _blobToBase64(blob) {
+    async isImageCached(imageUrl) {
+        try {
+            const db = await this._openIndexedDB();
+            const txn = db.transaction("images", "readonly");
+            const store = txn.objectStore("images");
+            const request = store.get(imageUrl);
+            return new Promise((resolve, reject) => {
+                request.onsuccess = (event) => resolve(!!event.target.result);
+                request.onerror = (event) => reject(event.target.error);
+            });
+        } catch (error) {
+            supLog(`Failed to check if image is cached:`, error);
+            throw error;
+        }
+    }
+
+    _openIndexedDB() {
         return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    }
+            const request = indexedDB.open("ImageDatabase", 1);
 
-    _base64ToFile(base64, filename, type) {
-        const arr = base64.split(',');
-        const mime = arr[0].match(/:(.*?);/)[1];
-        const bstr = atob(arr[1]);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-        }
-        return new File([u8arr], filename, { type: type || mime });
+            request.onupgradeneeded = function(event) {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('images')) {
+                    db.createObjectStore('images', { keyPath: 'url' });
+                }
+            };
+
+            request.onsuccess = function(event) {
+                resolve(event.target.result);
+            };
+
+            request.onerror = function(event) {
+                reject(event.target.error);
+            };
+        });
     }
 }
 
