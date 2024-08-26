@@ -62,12 +62,14 @@ const postImagesToFb = async (fbTabId, fbAlbumId, fbImages, {onSuccess, onFailur
         }
     }
 
+    let failed = 0, succeeded = 0;
     const session = messaging.createSession(fbTabId);
     session.onMessage.addListener((message) => {
         supLog("Got postImages ping", message);
         if (message.status === "complete") {
             if (message.success) {
-                addMessage(L_SUCCESS, `Posted ${cachedFbImages.length} images!`);
+                const failSuffix = failed > 0 ? ` (${failed} failed)` : "";
+                addMessage(L_SUCCESS, `Posted ${cachedFbImages.length} images!${failSuffix}`);
                 if (onSuccess)
                     onSuccess();
             } else {
@@ -76,7 +78,12 @@ const postImagesToFb = async (fbTabId, fbAlbumId, fbImages, {onSuccess, onFailur
                     onFailure(message);
             }
         } else {
-            addMessage(L_INFO, `Posting images: ${message.message || "..."}`);
+            const lvl = message.status === "error" ? L_ERROR : L_INFO;
+            addMessage(lvl, `Posting images: ${message.message || "..."}`);
+            if (message.status === "error")
+                failed++;
+            else
+                succeeded++;
         }
     });
     session.sendProxyMessage("postImages", {fbAlbumId, cachedFbImages});
