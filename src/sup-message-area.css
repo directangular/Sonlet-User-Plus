@@ -9,6 +9,7 @@
     overflow: auto;
     z-index: 10000;
     transition: right 0.3s;
+    padding-bottom: 50px;
 }
 
 .SUP-message-content {
@@ -19,9 +20,10 @@
     background-color: #f0fff0;
     text-align: center;
     cursor: pointer;
-    position: absolute;
-    bottom: 0;
-    width: 100%;
+    position: fixed;
+    bottom: 20px;
+    width: 170px;
+    height: 35px;
     padding: 10px;
 }
 
