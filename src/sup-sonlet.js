@@ -39,7 +39,7 @@ const withFbGroupAlbumsTab = (fbGroupId, {onSuccess, onFailure, onStatus}) => {
 
 const closeTab = (tabId, tabIdToRestore) => {
     supLog("Requesting tab closure and restoration", tabId, tabIdToRestore);
-    messaging.sendMessageToBackground("closeTab", { tabId, tabIdToRestore }, (rsp) => {
+    messaging.sendMessageToBackground("closeTab", { tabId, tabIdToRestore }, (response) => {
         if (response.success) {
             supLog("Closed tab successfully", tabId);
         } else {
