@@ -55,7 +55,15 @@ const proxyPostImages = (message, session) => {
         for (const cachedFbImage of cachedFbImages) {
             const { handle, caption } = cachedFbImage;
             supLog("Grabbing from storage", handle);
-            const file = await storage.getFile(handle);
+            try {
+                const file = await storage.getFile(handle);
+            } catch (error) {
+                session.sendProxyResponse({
+                    status: "error",
+                    message: `Error retrieving ${handle} from cache: ${error}`,
+                });
+                continue;
+            }
             supLog("Got file", file);
             session.sendProxyResponse({
                 status: "pending",
