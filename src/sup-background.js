@@ -306,6 +306,20 @@ const onCloseTab = (message, sender, sendResponse) => {
     return true;
 };
 
+const cacheFileByUrl = (message, sender, sendResponse) => {
+    storage.storeUrlAsFile(message.url)
+        .then((handle) => sendResponse({success: true, handle}))
+        .catch((error) => sendResponse({success: false, error}));
+    return true;
+};
+
+const retrieveCachedFileByUrl = (message, sender, sendResponse) => {
+    storage.getFile(handle)
+        .then((file) => sendResponse({success: true, file}))
+        .catch((error) => sendResponse({success: false, error}));
+    return true;
+};
+
 const checkForPostNavigationTask = (message, sender, sendResponse) => {
     const tabId = sender.tab.id;
     if (pendingTasks.has(tabId)) {
@@ -364,6 +378,8 @@ const messageActions = {
     "getFbGroupDetailsOfCurrentTab": getFbGroupDetailsOfCurrentTab,
     "linkFbGroup": linkFbGroup,
     "closeTab": onCloseTab,
+    "cacheFileByUrl": cacheFileByUrl,
+    "retrieveCachedFileByUrl": retrieveCachedFileByUrl,
     // plumbing
     "checkForPostNavigationTask": checkForPostNavigationTask,
     "navComplete": navComplete,
