@@ -56,7 +56,7 @@ const postImagesToFb = async (fbTabId, fbAlbumId, fbImages, {onSuccess, onFailur
         try {
             const handle = await storage.storeUrlAsFile(url);
             addMessage(L_DEBUG, `Cached ${url}`);
-            cachedFbImages.push({...fbImage, handle});
+            cachedFbImages.push({caption, handle});
         } catch (error) {
             addMessage(L_ERROR, `Error caching ${url}: ${error}`);
         }
