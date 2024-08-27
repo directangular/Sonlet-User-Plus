@@ -24,6 +24,126 @@ const sonletUrl = (path) => {
     return sonletBaseUrl() + pathNoLeadingSlash;
 };
 
+class SUPStorage {
+    constructor() {}
+
+    // Returns a storage handle
+    async storeUrlAsFile(imageUrl, filename, options = {}) {
+        try {
+            const isCached = await this.isImageCached(imageUrl);
+            if (isCached) {
+                supLog(`Already cached: ${imageUrl}`);
+                return imageUrl;
+            }
+
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+                throw new Error(`Network response was not ok for ${imageUrl}`);
+            }
+            const blob = await response.blob();
+            const mimeType = options.type || blob.type;
+            const fileData = {
+                url: imageUrl,
+                blob,
+                mimeType,
+                filename: filename || this._filenameFromUrl(imageUrl),
+            };
+
+            const db = await this._openIndexedDB();
+            const txn = db.transaction("images", "readwrite");
+            const store = txn.objectStore("images");
+            store.put(fileData);
+
+            return new Promise((resolve, reject) => {
+                txn.oncomplete = () => resolve(imageUrl);
+                txn.onerror = (event) => reject(event.target.error);
+            });
+        } catch (error) {
+            supLog('Failed to store image:', error);
+            throw error;
+        }
+    }
+
+    async getFileData(handle) {
+        try {
+            const db = await this._openIndexedDB();
+            const txn = db.transaction("images", "readonly");
+            const store = txn.objectStore("images");
+
+            return new Promise((resolve, reject) => {
+                const request = store.get(handle);
+
+                request.onsuccess = async (event) => {
+                    const result = event.target.result;
+                    if (result) {
+                        const fileData = {
+                            buffer: new Uint8Array(await result.blob.arrayBuffer()),
+                            name: result.filename,
+                            type: result.mimeType,
+                        };
+                        resolve(fileData);
+                    } else {
+                        reject(new Error(`No file found for handle: ${handle}`));
+                    }
+                };
+
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        } catch (error) {
+            supLog('Failed to retrieve file:', handle, error);
+            throw error;
+        }
+    }
+
+    async isImageCached(imageUrl) {
+        try {
+            const db = await this._openIndexedDB();
+            const txn = db.transaction("images", "readonly");
+            const store = txn.objectStore("images");
+            const request = store.get(imageUrl);
+            return new Promise((resolve, reject) => {
+                request.onsuccess = (event) => resolve(!!event.target.result);
+                request.onerror = (event) => reject(event.target.error);
+            });
+        } catch (error) {
+            supLog(`Failed to check if image is cached:`, error);
+            throw error;
+        }
+    }
+
+    _openIndexedDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open("ImageDatabase", 1);
+
+            request.onupgradeneeded = function(event) {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('images')) {
+                    db.createObjectStore('images', { keyPath: 'url' });
+                }
+            };
+
+            request.onsuccess = function(event) {
+                resolve(event.target.result);
+            };
+
+            request.onerror = function(event) {
+                reject(event.target.error);
+            };
+        });
+    }
+
+    _filenameFromUrl(url) {
+        const parsedUrl = new URL(url);
+        const pathname = parsedUrl.pathname;
+        // Extract the filename by taking the last segment after the last '/'
+        return pathname.substring(pathname.lastIndexOf('/') + 1);
+    }
+}
+
+const storage = new SUPStorage();
+
 // Would be nice to generalize this so that we don't have to keep separate
 // hooks for groups vs. albums... But this is good enough for who it's for
 // at the moment.
@@ -218,6 +338,29 @@ const fetchAlbums = (port, message) => {
     fbPort.postMessage({"action": "fetchAlbums"});
 };
 
+const cacheImagesByUrl = (port, message) => {
+    const successes = [];
+    const failures = [];
+
+    const processUrls = async (urls) => {
+        for (const url of urls) {
+            try {
+                const handle = await storage.storeUrlAsFile(url);
+                successes.push({ url, handle });
+                port.postMessage({ status: "pending", posted: url });
+            } catch (error) {
+                failures.push({ url, error: error.message || error });
+                port.postMessage({ status: "pending", failed: url });
+            }
+        }
+    };
+
+    processUrls(message.urls)
+        .then(() => {
+            port.postMessage({ status: "complete", success: true, successes, failures });
+        });
+};
+
 // To keep track of tasks that need to be performed by a content
 // script. Handy to perform tasks across a tab reload, for example.
 // Content scripts need to send a message with
@@ -306,16 +449,9 @@ const onCloseTab = (message, sender, sendResponse) => {
     return true;
 };
 
-const cacheFileByUrl = (message, sender, sendResponse) => {
-    storage.storeUrlAsFile(message.url)
-        .then((handle) => sendResponse({success: true, handle}))
-        .catch((error) => sendResponse({success: false, error}));
-    return true;
-};
-
 const retrieveCachedFileByUrl = (message, sender, sendResponse) => {
-    storage.getFile(handle)
-        .then((file) => sendResponse({success: true, file}))
+    storage.getFileData(message.url)
+        .then((fileData) => sendResponse({success: true, fileData}))
         .catch((error) => sendResponse({success: false, error}));
     return true;
 };
@@ -378,7 +514,6 @@ const messageActions = {
     "getFbGroupDetailsOfCurrentTab": getFbGroupDetailsOfCurrentTab,
     "linkFbGroup": linkFbGroup,
     "closeTab": onCloseTab,
-    "cacheFileByUrl": cacheFileByUrl,
     "retrieveCachedFileByUrl": retrieveCachedFileByUrl,
     // plumbing
     "checkForPostNavigationTask": checkForPostNavigationTask,
@@ -396,6 +531,9 @@ const portRoutes = {
     },
     "fetchAlbumsChannel": {
         "fetchAlbums": fetchAlbums,
+    },
+    "cacheImagesByUrlChannel": {
+        "cacheImagesByUrl": cacheImagesByUrl,
     },
 };
 

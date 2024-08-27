@@ -1,4 +1,3 @@
-const storage = new SUPStorage();
 const messaging = new SUPMessaging(browser);
 
 // Returns true if URL change was successfull
@@ -31,6 +30,27 @@ const addImageToUploadQueue = async (file, caption) => {
     fileInput.dispatchEvent(event);
 };
 
+const getCachedFileFromBackground = (url) => {
+    return new Promise((resolve, reject) => {
+        messaging.sendMessageToBackground("retrieveCachedFileByUrl", {url})
+            .then((response) => {
+                const { buffer, name, type } = response.fileData;
+
+                // object -> Uint8Array
+                const arr = new Uint8Array(Object.values(buffer));
+
+                // Uint8Array -> ArrayBuffer
+                const arrayBuffer = arr.buffer;
+
+                const file = new File([arrayBuffer], name, { type });
+                resolve(file);
+            })
+            .catch((error) => {
+                reject(error);
+            });
+    });
+};
+
 /// *** BEGIN proxy message handlers ***
 
 // We must already be on the album page
@@ -54,9 +74,10 @@ const proxyPostImages = (message, session) => {
         // Now add the images to the upload area
         for (const cachedFbImage of cachedFbImages) {
             const { handle, caption } = cachedFbImage;
-            supLog("Grabbing from storage", handle);
+            supLog("Grabbing from cache", handle);
+            let file;
             try {
-                const file = await storage.getFile(handle);
+                file = await getCachedFileFromBackground(handle);
             } catch (error) {
                 session.sendProxyResponse({
                     status: "error",
@@ -68,6 +89,7 @@ const proxyPostImages = (message, session) => {
             session.sendProxyResponse({
                 status: "pending",
                 message: `Adding ${file.name} to post queue`,
+                step: "cacheRetrieve",
             });
             addImageToUploadQueue(file, caption);
             supLog("One down... Sleeping a bit for observation");

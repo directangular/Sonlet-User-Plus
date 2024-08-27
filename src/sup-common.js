@@ -25,17 +25,6 @@ const sleepWithJitter = async (sleepMs, jitterMinMs = 1000, jitterMaxMs = 3000) 
     await sleep(getRandomNumber(jitterMinMs, jitterMaxMs));
 };
 
-const filenameFromUrl = (url) => {
-    // Use a URL object to manage parsing
-    const parsedUrl = new URL(url);
-
-    // Get the pathname part of the URL, which includes the filename
-    const pathname = parsedUrl.pathname;
-
-    // Extract the filename by taking the last segment after the last '/'
-    return pathname.substring(pathname.lastIndexOf('/') + 1);
-};
-
 // wrap fetch to include auth headers, etc
 const supFetch = (url, method, data) => {
     const options = {
@@ -51,113 +40,6 @@ const supFetch = (url, method, data) => {
         ...options,
     });
 };
-
-class SUPStorage {
-    constructor() {}
-
-    // Returns a storage handle
-    async storeUrlAsFile(imageUrl, filename, options = {}) {
-        try {
-            const isCached = await this.isImageCached(imageUrl);
-            if (isCached) {
-                supLog(`Already cached: ${imageUrl}`);
-                return imageUrl;
-            }
-
-            const response = await fetch(imageUrl);
-            if (!response.ok) {
-                throw new Error(`Network response was not ok for ${imageUrl}`);
-            }
-            const blob = await response.blob();
-            const mimeType = options.type || blob.type;
-            const fileData = {
-                url: imageUrl,
-                blob,
-                mimeType,
-                filename: filename || filenameFromUrl(imageUrl),
-            };
-
-            const db = await this._openIndexedDB();
-            const txn = db.transaction("images", "readwrite");
-            const store = txn.objectStore("images");
-            store.put(fileData);
-
-            return new Promise((resolve, reject) => {
-                txn.oncomplete = () => resolve(imageUrl);
-                txn.onerror = (event) => reject(event.target.error);
-            });
-        } catch (error) {
-            supLog('Failed to store image:', error);
-            throw error;
-        }
-    }
-
-    async getFile(handle) {
-        try {
-            const db = await this._openIndexedDB();
-            const txn = db.transaction("images", "readonly");
-            const store = txn.objectStore("images");
-
-            return new Promise((resove, reject) => {
-                const request = store.get(handle);
-
-                request.onsuccess = (event) => {
-                    const result = event.target.result;
-                    if (result) {
-                        const file = new File([result.blob], result.filename, { type: result.type });
-                        resolve(file);
-                    } else {
-                        reject(new Error(`No file found for handle: ${handle}`));
-                    }
-                };
-
-                request.onerror = (event) => {
-                    reject(event.target.error);
-                };
-            });
-        } catch (error) {
-            supLog('Failed to retrieve file:', handle, error);
-            throw error;
-        }
-    }
-
-    async isImageCached(imageUrl) {
-        try {
-            const db = await this._openIndexedDB();
-            const txn = db.transaction("images", "readonly");
-            const store = txn.objectStore("images");
-            const request = store.get(imageUrl);
-            return new Promise((resolve, reject) => {
-                request.onsuccess = (event) => resolve(!!event.target.result);
-                request.onerror = (event) => reject(event.target.error);
-            });
-        } catch (error) {
-            supLog(`Failed to check if image is cached:`, error);
-            throw error;
-        }
-    }
-
-    _openIndexedDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open("ImageDatabase", 1);
-
-            request.onupgradeneeded = function(event) {
-                const db = event.target.result;
-                if (!db.objectStoreNames.contains('images')) {
-                    db.createObjectStore('images', { keyPath: 'url' });
-                }
-            };
-
-            request.onsuccess = function(event) {
-                resolve(event.target.result);
-            };
-
-            request.onerror = function(event) {
-                reject(event.target.error);
-            };
-        });
-    }
-}
 
 /// SUPMessaging - class to encapsulate message handling, including support
 /// for tab-to-tab communication (by way of a proxy via the background

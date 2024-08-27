@@ -1,4 +1,3 @@
-const storage = new SUPStorage();
 const messaging = new SUPMessaging(browser);
 
 const withFbAlbumTab = (fbAlbumId, {onSuccess, onFailure, onStatus}) => {
@@ -48,17 +47,49 @@ const closeTab = (tabId, tabIdToRestore) => {
     });
 };
 
+const cacheImages = (imgUrls) => {
+    return new Promise((resolve, reject) => {
+        const port = browser.runtime.connect({name: "cacheImagesByUrlChannel"});
+        port.onMessage.addListener((msg) => {
+            if (msg.status === "complete") {
+                port.disconnect();
+                const msgSuffix = msg.failures.length > 0 ? ` (${msg.failures.length} failed)` : "";
+                addMessage(L_DEBUG, `Cached ${imgUrls.length} images${msgSuffix}`);
+                resolve({successes: msg.successes, failures: msg.failures});
+            } else {
+                if (msg.posted) {
+                    addMessage(L_DEBUG, `Cached ${msg.posted}`);
+                } else if (msg.failed) {
+                    addMessage(L_ERROR, `Failed to cache ${msg.failed}`);
+                } else {
+                    supLog("Unknown message", msg);
+                    addMessage(L_DEBUG, `Unknown message: ${msg}`);
+                }
+            }
+        });
+        port.postMessage({action: "cacheImagesByUrl", urls: imgUrls});
+    });
+};
+
 // Must already be on the album page
 const postImagesToFb = async (fbTabId, fbAlbumId, fbImages, {onSuccess, onFailure}) => {
-    const cachedFbImages = [];
-    for (const fbImage of fbImages) {
-        const { url, caption } = fbImage;
-        try {
-            const handle = await storage.storeUrlAsFile(url);
-            addMessage(L_DEBUG, `Cached ${url}`);
-            cachedFbImages.push({caption, handle});
-        } catch (error) {
-            addMessage(L_ERROR, `Error caching ${url}: ${error}`);
+    let cachedUrls = [];
+    try {
+        const results = await cacheImages(fbImages.map(fbi => fbi.url));
+        cachedUrls = results.successes.map(s => s.url);
+        if (results.failures.length > 0) {
+            addMessage(L_ERROR, "Couldn't cache ${results.failures.length} images.");
+        }
+    } catch (error) {
+        addMessage(L_ERROR, "Error caching images: ${error}");
+        return;
+    }
+
+    let cachedFbImages = [];
+
+    for (const fbi of fbImages) {
+        if (cachedUrls.includes(fbi.url)) {
+            cachedFbImages.push({handle: fbi.url, caption: fbi.caption});
         }
     }
 
@@ -69,7 +100,7 @@ const postImagesToFb = async (fbTabId, fbAlbumId, fbImages, {onSuccess, onFailur
         if (message.status === "complete") {
             if (message.success) {
                 const failSuffix = failed > 0 ? ` (${failed} failed)` : "";
-                addMessage(L_SUCCESS, `Posted ${cachedFbImages.length} images!${failSuffix}`);
+                addMessage(L_SUCCESS, `Posted ${succeeded} images!${failSuffix}`);
                 if (onSuccess)
                     onSuccess();
             } else {
@@ -80,10 +111,12 @@ const postImagesToFb = async (fbTabId, fbAlbumId, fbImages, {onSuccess, onFailur
         } else {
             const lvl = message.status === "error" ? L_ERROR : L_INFO;
             addMessage(lvl, `Posting images: ${message.message || "..."}`);
-            if (message.status === "error")
-                failed++;
-            else
-                succeeded++;
+            if (message.step === "cacheRetrieve") {
+                if (message.status === "error")
+                    failed++;
+                else
+                    succeeded++;
+            }
         }
     });
     session.sendProxyMessage("postImages", {fbAlbumId, cachedFbImages});
