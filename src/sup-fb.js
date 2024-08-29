@@ -16,6 +16,75 @@ const changeUrl = async (url, postNav) => {
     }
 };
 
+// Helper method to get caption textareas
+const getCaptionTextareas = () => {
+    return document.querySelectorAll("div:has(img) + div textarea");
+};
+
+// Helper method to get the last caption textarea
+const getLastCaptionTextarea = () => {
+    const textareas = getCaptionTextareas();
+    return textareas[textareas.length - 1] || null;
+};
+
+const waitForNewTextarea = (initialCount, maxAttempts = 20, interval = 500) => {
+    return new Promise((resolve) => {
+        let attempts = 0;
+        const checkForNewTextarea = () => {
+            const textareas = getCaptionTextareas();
+            if (textareas.length > initialCount) {
+                resolve(getLastCaptionTextarea());
+            } else if (attempts < maxAttempts) {
+                attempts++;
+                setTimeout(checkForNewTextarea, interval);
+            } else {
+                resolve(null);
+            }
+        };
+        checkForNewTextarea();
+    });
+};
+
+const setLatestCaption = async (initialTextareaCount, caption) => {
+    // Wait for the new textarea to appear
+    const textarea = await waitForNewTextarea(initialTextareaCount);
+    if (!textarea) {
+        supLog("New textarea did not appear after file upload");
+        return;
+    }
+
+    // Use existing ID if present, or generate a new one
+    let textareaId = textarea.id;
+    if (!textareaId) {
+        textareaId = 'extension-textarea-' + Date.now();
+        textarea.id = textareaId;
+    }
+
+    // Set it with React via the background script using a port
+    const result = await new Promise(resolve => {
+        supLog("Sending executeScript message to background", {textareaId, caption});
+        const port = messaging.connectToBackground("executeScriptChannel");
+
+        port.onMessage.addListener((response) => {
+            supLog("executeScript result", response);
+            port.disconnect();
+            resolve(response.success);
+        });
+
+        port.postMessage({
+            action: "executeScript",
+            scriptName: "setCaption",
+            args: [textareaId, caption]
+        });
+    });
+
+    if (result) {
+        supLog("Caption set successfully using injected script");
+    } else {
+        supLog("Error setting caption using injected script");
+    }
+};
+
 const addImageToUploadQueue = async (file, caption) => {
     // Get the file input element and set the File object
     const fileInput = document.querySelector('input[type="file"]');
@@ -23,11 +92,14 @@ const addImageToUploadQueue = async (file, caption) => {
     dataTransfer.items.add(file);
     fileInput.files = dataTransfer.files;
 
-    // TODO: add caption
+    // Count existing textareas before upload
+    const initialTextareaCount = getCaptionTextareas().length;
 
     // Trigger events to let Facebook know the input changed
-    const event = new Event('change', { bubbles: true });
-    fileInput.dispatchEvent(event);
+    const changeEvent = new Event('change', { bubbles: true });
+    fileInput.dispatchEvent(changeEvent);
+
+    await setLatestCaption(initialTextareaCount, caption);
 };
 
 const getCachedFileFromBackground = (url) => {
@@ -70,7 +142,7 @@ const proxyPostImages = (message, session) => {
         btn = results[0];
         supLog("Clicking", btn);
         btn.click();
-        await sleep(1000);
+        await sleep(2000);
         // Now add the images to the upload area
         for (const cachedFbImage of cachedFbImages) {
             const { handle, caption } = cachedFbImage;
@@ -91,7 +163,7 @@ const proxyPostImages = (message, session) => {
                 message: `Adding ${file.name} to post queue`,
                 step: "cacheRetrieve",
             });
-            addImageToUploadQueue(file, caption);
+            await addImageToUploadQueue(file, caption);
             supLog("One down... Sleeping a bit for observation");
             await sleepWithJitter(1000);
         }
