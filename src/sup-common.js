@@ -128,6 +128,10 @@ class SUPMessaging {
         return this.api.runtime.sendMessage(message);
     }
 
+    connectToBackground(channelName) {
+        return this.api.runtime.connect({name: channelName});
+    }
+
     createSession(destTabId) {
         const requestId = `${destTabId}-${this.requestIdCounter++}`;
         this._sessionListeners[requestId] = [];
