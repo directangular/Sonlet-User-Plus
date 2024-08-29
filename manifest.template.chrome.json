@@ -52,6 +52,9 @@
 	"type": "module"
     },
     "permissions": [
-        "tabs", "activeTab", "storage"
+        "tabs", "activeTab", "storage", "scripting"
+    ],
+    "host_permissions": [
+        "https://*.facebook.com/*"
     ]
 }

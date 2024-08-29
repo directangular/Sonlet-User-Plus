@@ -456,6 +456,81 @@ const retrieveCachedFileByUrl = (message, sender, sendResponse) => {
     return true;
 };
 
+// This runs in a clean, top-level environment (not in the extension
+// execution context), and thus cannot make use of utility functions like
+// supLog.
+const setCaption = (textareaId, caption) => {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            const result = {
+                textareaFound: false,
+                reactPropsFound: false,
+                onChangeFound: false,
+                captionSet: false,
+                actualValue: null,
+            };
+
+            const logAndResolve = (message) => {
+                console.log(`[SUP-SCRIPT] ${message}`, result);
+                resolve(result);
+            };
+
+            const textarea = document.getElementById(textareaId);
+            if (!textarea) return logAndResolve("Textarea not found");
+            result.textareaFound = true;
+
+            const reactProps = Object.keys(textarea).find(key => key.startsWith('__reactProps$'));
+            if (!reactProps) return logAndResolve("React props not found");
+            result.reactPropsFound = true;
+
+            const props = textarea[reactProps];
+            if (!props.onChange) return logAndResolve("onChange not found in props");
+            result.onChangeFound = true;
+
+            props.onChange({ target: { value: caption } });
+
+            result.actualValue = textarea.value;
+            result.captionSet = textarea.value === caption;
+
+            logAndResolve("setCaption final result");
+        }, 1000); // 1s delay
+    });
+};
+
+const executionScripts = {
+    "setCaption": setCaption,
+};
+
+const executeScript = (port, message) => {
+    const { scriptName, args } = message;
+    const scriptFn = executionScripts[scriptName];
+    if (scriptFn === undefined) {
+        port.postMessage({ success: false, error: `Unknown script: ${scriptName}` });
+        port.disconnect();
+        return;
+    }
+    supLog("executeScript", {scriptName, args});
+
+    // Get the tab ID from the port's sender
+    const tabId = port.sender.tab.id;
+
+    chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        world: "MAIN",
+        func: scriptFn,
+        args,
+    }).then(injectionResults => {
+        const result = injectionResults[0].result;
+        supLog("Script execution result:", result);
+        port.postMessage({ success: true, result });
+        port.disconnect();
+    }).catch(error => {
+        supLog("Script execution error:", error.message);
+        port.postMessage({ success: false, error: error.message });
+        port.disconnect();
+    });
+};
+
 const checkForPostNavigationTask = (message, sender, sendResponse) => {
     const tabId = sender.tab.id;
     if (pendingTasks.has(tabId)) {
@@ -534,6 +609,9 @@ const portRoutes = {
     },
     "cacheImagesByUrlChannel": {
         "cacheImagesByUrl": cacheImagesByUrl,
+    },
+    "executeScriptChannel": {
+        "executeScript": executeScript,
     },
 };
 
